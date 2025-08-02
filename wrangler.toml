@@ -1,6 +1,5 @@
 name = "microsoftdeepsearch"
 main = "worker.js"
 compatibility_date = "2025-08-02"
-usage_model = "bundled"
 workers_dev = true
 minify = true
