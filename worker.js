@@ -1,5 +1,3 @@
-// Ultimate search scraper with Google + DuckDuckGo fallback, JSON output, and in-memory LRU caching
-
 const cache = new Map(); const MAX_CACHE = 50;
 
 function setCache(key, value) { if (cache.size >= MAX_CACHE) { const firstKey = cache.keys().next().value; cache.delete(firstKey); } cache.set(key, value); }
@@ -21,36 +19,19 @@ if (cacheHit) {
   });
 }
 
-async function scrapeGoogle(q) {
-  const url = `https://www.google.com/search?q=${encodeURIComponent(q)}`;
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-    }
-  });
-  const html = await response.text();
-  const results = [];
-  const resultRegex = /<div class=\"tF2Cxc\">([\s\S]*?)<\/div><\/div><\/div>/g;
-  let match;
+async function scrapeBing(q) {
+  const res = await fetch("https://www.bing.com/search?q=" + encodeURIComponent(q));
+  const html = await res.text();
 
-  while ((match = resultRegex.exec(html)) !== null && results.length < 10) {
-    const block = match[1];
-    const titleMatch = block.match(/<h3.*?>(.*?)<\/h3>/);
-    const urlMatch = block.match(/<a href=\"(https?:\/\/[^\"]+)\">/);
-    const snippetMatch = block.match(/<div class=\"VwiC3b yXK7lf MUxGbd yDYNvb lyLwlc\">([\s\S]*?)<\/div>/);
-    const displayedLinkMatch = block.match(/<span class=\"VuuXrf\">.*?<span.*?>(.*?)<\/span>/);
+  const matches = [...html.matchAll(/<li class=\"b_algo\".*?<h2><a href=\"(.*?)\".*?>(.*?)<\/a><\/h2>.*?<p>(.*?)<\/p>/gs)];
 
-    if (titleMatch && urlMatch && snippetMatch) {
-      results.push({
-        title: titleMatch[1].replace(/<[^>]+>/g, "").trim(),
-        url: urlMatch[1].trim(),
-        snippet: snippetMatch[1].replace(/<[^>]+>/g, "").trim(),
-        displayed_link: displayedLinkMatch ? displayedLinkMatch[1].trim() : null,
-        source: "Google"
-      });
-    }
-  }
-  return results;
+  return matches.map(match => ({
+    title: stripHTML(match[2]),
+    url: match[1],
+    snippet: stripHTML(match[3]),
+    displayed_link: null,
+    source: "Bing"
+  })).slice(0, 10);
 }
 
 async function scrapeDDG(q) {
@@ -77,15 +58,19 @@ async function scrapeDDG(q) {
   return results;
 }
 
+function stripHTML(str) {
+  return str.replace(/<[^>]*>?/gm, "").replace(/\s+/g, " ").trim();
+}
+
 try {
-  const googleResults = await scrapeGoogle(query);
-  if (googleResults.length) {
-    setCache(query, googleResults);
-    return new Response(JSON.stringify({ query, source: "Google", results: googleResults }, null, 2), {
+  const bingResults = await scrapeBing(query);
+  if (bingResults.length) {
+    setCache(query, bingResults);
+    return new Response(JSON.stringify({ query, source: "Bing", results: bingResults }, null, 2), {
       headers: { "Content-Type": "application/json" }
     });
   } else {
-    throw new Error("Google returned no results");
+    throw new Error("Bing returned no results");
   }
 } catch (err) {
   const ddgResults = await scrapeDDG(query);
@@ -96,4 +81,3 @@ try {
 }
 
 } };
-
