@@ -1,4 +1,4 @@
-name = "search"
+name = "microsoftdeepsearch"
 main = "worker.js"
 compatibility_date = "2025-08-02"
 usage_model = "bundled"
